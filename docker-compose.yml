@@ -2,11 +2,12 @@ networks:
   frontend-network:
     driver: bridge
   backend-network:
-    internal: true # Hardening: cô lập database không cho public ra ngoài host
+    internal: true
 
 volumes:
   mysql_data:
   nginx_logs:
+  grafana_data:
 
 services:
   gym-app:
@@ -69,3 +70,48 @@ services:
       - frontend-network
     depends_on:
       - gym-app
+
+  # --- CÁC DỊCH VỤ GIÁM SÁT (COMMIT 2) ---
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: gym-prometheus
+    restart: unless-stopped
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - "9090:9090"
+    networks:
+      - frontend-network
+
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.47.2
+    container_name: gym-cadvisor
+    restart: unless-stopped
+    privileged: true
+    devices:
+      - /dev/kmsg
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    networks:
+      - frontend-network
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: gym-grafana
+    restart: unless-stopped
+    ports:
+      - "3001:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=AdminSecurePass@2026
+    volumes:
+      - grafana_data:/var/lib/grafana
+    networks:
+      - frontend-network
+    depends_on:
+      - prometheus
